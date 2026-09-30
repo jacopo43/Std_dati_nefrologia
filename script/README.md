@@ -249,20 +249,9 @@ Lo script genera due file:
 #### 9.1.1 Fonti originarie
 Il dizionario dei farmaci è stato costruito a partire principalmente da:
 
-1. classificazione ATC (Anatomical Therapeutic Chemical Classification System);
-2. dizionario dei farmaci utilizzato nel progetto DiAna, fornito come input
-   originario;
-3. denominazioni e varianti di farmaci presenti nei dati clinici forniti;
-4. eventuali nomi commerciali, sinonimi e varianti ortografiche presenti negli
-   input originari.
-
-La classificazione ATC costituisce la fonte per l'identificazione del principio
-attivo e, quando disponibile, per il relativo codice e livello/classificazione
-farmacologica.
-
-Il dizionario DiAna e le denominazioni presenti nei dati originari ampliano la
-possibilità di riconoscere lo stesso principio attivo quando viene scritto con
-forme diverse.
+1. classificazione ATC
+2. dizionario dei farmaci utilizzato nel progetto DiAna
+3. eventuali nomi commerciali, sinonimi e varianti ortografiche
 
 #### 9.1.2 Costruzione del nome standard
 Per ogni farmaco viene definita una denominazione standard, corrispondente al
@@ -278,164 +267,56 @@ Esempio concettuale:
         <- nome del principio attivo ATC
         <- sinonimi
         <- denominazioni alternative
-        <- nomi commerciali presenti negli input
+        <- nomi commerciali
         <- varianti ortografiche documentate
 
 Le diverse denominazioni non diventano quindi farmaci differenti, ma termini
 alternativi di riconoscimento dello stesso farmaco.
 
-#### 9.1.3 Generazione dei termini multipli
-I termini alternativi possono derivare da:
-
-- denominazione del principio attivo;
-- denominazioni alternative presenti nel dizionario farmacologico originario;
-- nome commerciale quando disponibile nell'input;
-- forme con o senza sali o specificazioni farmaceutiche, quando già presenti
-  nelle fonti originarie;
-- varianti ortografiche effettivamente osservate negli input;
-- combinazioni di principi attivi già definite come tali nelle fonti.
-
-Non vengono inventati nuovi principi attivi.
-
-Quando una fonte contiene più termini equivalenti, questi vengono separati e
-memorizzati come sinonimi dello stesso elemento standard.
-
-#### 9.1.4 Radici di ricerca
+#### 9.1.3 Radici di ricerca
 Per alcuni termini può essere utilizzata una radice esclusivamente per
 riconoscere flessioni o varianti ortografiche dello stesso termine.
-
 La radice non rappresenta una nuova fonte terminologica.
-
 Nel matching automatico una radice deve iniziare all'inizio di una parola e
 non può essere cercata come sequenza arbitraria di caratteri all'interno di
-un'altra parola.
-
-Questa regola evita, per esempio, che una sequenza come "asm" venga
+un'altra parola. Questa regola evita, per esempio, che una sequenza come "asm" venga
 riconosciuta all'interno di "spasmo".
 
-#### 9.1.5 Normalizzazione tecnica
+#### 9.1.4 Normalizzazione tecnica
 Prima del confronto vengono uniformati:
-
 - maiuscole/minuscole;
 - accenti;
 - apostrofi;
 - punteggiatura non informativa;
 - spazi multipli.
 
-Queste trasformazioni non generano sinonimi clinici nuovi: rendono soltanto
-comparabili forme graficamente diverse dello stesso termine.
-
-
 ### 9.2 Dizionario delle comorbidità
-
 #### 9.2.1 Fonti originarie
 Il dizionario delle comorbidità è stato costruito a partire da:
-
-1. elenco delle comorbidità e delle categorie cliniche definite negli input
-   originari del progetto;
-2. terminologia MedDRA fornita come input originario, utilizzata come
+1. terminologia MedDRA fornita come input originario, utilizzata come
    riferimento terminologico per diagnosi, condizioni ed eventi clinici;
-3. termini clinici e varianti presenti nei dati di cartella clinica forniti;
-4. esempi, eccezioni e indicazioni cliniche fornite durante la definizione
+2. esempi, eccezioni e indicazioni cliniche fornite durante la definizione
    delle variabili;
-5. acronimi e denominazioni mediche equivalenti presenti negli input originali.
+3. acronimi e denominazioni mediche equivalenti.
 
-I file tecnici successivamente creati per organizzare queste informazioni non
-sono fonti indipendenti: sono la traduzione operativa di questi input.
-
-#### 9.2.2 Costruzione delle categorie standard
-Le categorie finali non corrispondono necessariamente a una singola stringa
-testuale.
-
-Per ogni concetto clinico di interesse è stata definita una categoria standard
-da utilizzare nell'output. Alla categoria vengono associati i termini
-originari che possono esprimere lo stesso concetto.
-
-Schema generale:
-
-    categoria standard
-        <- termine clinico principale
-        <- termine MedDRA pertinente, quando utilizzato negli input
-        <- sinonimi clinici
-        <- acronimi
-        <- denominazioni italiane/inglesi presenti negli input
-        <- varianti ortografiche osservate
-        <- forme morfologiche riconoscibili tramite radice
-
-#### 9.2.3 Generazione di sinonimi e varianti
-I termini multipli associati a una categoria sono stati ottenuti combinando le
-forme presenti nelle fonti originarie.
-
+#### 9.2.2 Generazione di sinonimi e varianti
+I termini multipli associati a una categoria sono stati ottenuti combinando le forme presenti nelle fonti originarie.
 In particolare possono essere incluse:
-
 - denominazione estesa;
 - abbreviazione o acronimo;
 - sinonimo clinico;
-- termine italiano e corrispondente forma inglese, se presenti negli input;
+- termine italiano e corrispondente forma inglese, se trovato;
 - grafie alternative;
 - varianti morfologiche dello stesso concetto.
 
-La presenza di più termini serve esclusivamente a riconoscere modi diversi di
-scrivere la stessa informazione clinica.
-
-#### 9.2.4 Uso di MedDRA
-MedDRA viene utilizzato come riferimento terminologico clinico quando i termini
-originari provengono da tale nomenclatura o sono stati ricondotti a essa negli
-input forniti.
-
-Lo scopo non è trasformare automaticamente tutto il testo libero in un codice
-MedDRA, ma utilizzare la terminologia disponibile per rendere più stabile e
-riproducibile il riconoscimento dei concetti clinici di interesse.
-
-Le categorie finali del progetto possono pertanto essere più aggregate rispetto
-a un singolo Preferred Term MedDRA.
-
-#### 9.2.5 Radici di ricerca
-Per alcune comorbidità sono state utilizzate radici per riconoscere varianti
-della stessa parola.
-
-Esempio concettuale:
-
-    ipertens-
-        -> ipertensione
-        -> ipertensivo
-        -> ipertensiva
-
-Una radice viene applicata soltanto dall'inizio di una parola.
-
-Non è consentito il matching della radice nel mezzo di una parola.
-
-Esempio:
-
-    radice: asm
-
-    "asma"       -> compatibile
-    "asmatico"   -> compatibile
-    "spasmo"     -> NON compatibile
-
-Questa regola è fondamentale per ridurre i falsi positivi.
-
-#### 9.2.6 Termini ambigui
-Un termine breve, generico o potenzialmente ambiguo non viene necessariamente
-utilizzato come match automatico.
-
-Quando dagli input originari emerge che un termine può avere più significati,
-esso può essere:
-
+#### 9.2.4 Termini ambigui
+Un termine breve, generico o potenzialmente ambiguo non viene necessariamente utilizzato come match automatico. Quando dagli input originari emerge che un termine può avere più significati, esso può essere:
 - escluso dal matching automatico;
 - utilizzato soltanto con un vincolo di contesto;
 - contrassegnato come termine da revisionare.
 
-Questa distinzione deriva dalla valutazione clinica dei termini originali e non
-da una generazione automatica di nuove diagnosi.
-
-#### 9.2.7 Negazione, familiarità e incertezza
-La presenza del termine non è sufficiente da sola per assegnare una
-comorbidità.
-
-Il contesto viene controllato per evitare di codificare come diagnosi presente
-espressioni quali:
-
+#### 9.2.5 Negazione, familiarità e incertezza
+La presenza del termine non è sufficiente da sola per assegnare una comorbidità. Il contesto viene controllato per evitare di codificare come diagnosi presente espressioni quali:
 - "non presenta...";
 - "assenza di...";
 - "nessuna storia di...";
@@ -444,92 +325,18 @@ espressioni quali:
 - "sospetto...";
 - "possibile...";
 - "da escludere...".
-
-Le espressioni di negazione, familiarità e incertezza sono state definite a
-partire dalle regole e dagli esempi forniti negli input originari e
-dall'osservazione del tipo di testo libero contenuto nelle cartelle.
-
-#### 9.2.8 Accorpamento delle categorie
-Quando più termini originari rappresentano varianti dello stesso concetto
-richiesto nell'output, essi vengono ricondotti alla stessa categoria.
-
-Esempi di questa logica possono comprendere:
-
-- differenti descrizioni di una stessa patologia;
-- sedi o forme cliniche che il protocollo richiede di aggregare;
-- termini generici sostituiti da una categoria più specifica quando entrambe
-  vengono riconosciute.
-
-Queste regole sono definite sulla base della struttura clinica richiesta per il
-dataset finale, non mediante una classificazione statistica automatica.
-
+Le espressioni di negazione, familiarità e incertezza sono state definite a partire dalle regole e dagli esempi forniti negli input originari e dall'osservazione del tipo di testo libero contenuto nelle cartelle.
 
 ### 9.3 Dizionario delle conseguenze delle interazioni
-
-#### 9.3.1 Fonti originarie
-Il dizionario delle interazioni è stato costruito a partire da:
-
-1. categorie di conseguenza delle interazioni farmacologiche definite negli
-   input originari del progetto;
-2. descrizioni testuali delle interazioni presenti nei dati clinici e nei
-   materiali originari forniti;
-3. terminologia clinica MedDRA utilizzata negli input quando la conseguenza
-   dell'interazione corrisponde a un evento o a una condizione clinica;
-4. esempi clinici e regole di interpretazione fornite per distinguere
-   conseguenze specifiche da descrizioni farmacocinetiche o generiche;
-5. denominazioni, sinonimi e varianti linguistiche presenti negli input
-   originari.
-
-Anche in questo caso i successivi file di dizionario o guida costituiscono
-soltanto una formalizzazione tecnica di tali fonti.
-
-#### 9.3.2 Costruzione delle categorie di conseguenza
-Le frasi che descrivono una possibile conseguenza di un'interazione possono
-essere molto diverse pur indicando lo stesso fenomeno.
-
+Il dizionario delle interazioni è stato costruito a partire da categorie di conseguenza delle interazioni farmacologiche definite negli input del progetto.
+Le frasi che descrivono una possibile conseguenza di un'interazione possono essere molto diverse pur indicando lo stesso fenomeno.
 Per questo motivo vengono ricondotte a una categoria standard.
 
-#### 9.3.3 Schema generale:
+Un evento manifesto e un aumento del rischio dello stesso evento non vengono necessariamente considerati equivalenti.
+Per esempio, una formulazione che indica "rischio di sanguinamento" può essere distinta da una formulazione che documenta un "sanguinamento" già avvenuto.
 
-    conseguenza standard
-        <- descrizione clinica originaria
-        <- termine clinico equivalente
-        <- eventuale termine MedDRA pertinente
-        <- sinonimo
-        <- variante linguistica
-        <- formulazione farmacologica equivalente
-
-
-#### 9.3.4 Tipi di termini inclusi
-Tra i termini associabili a una conseguenza possono rientrare:
-
-- evento clinico manifesto;
-- aumento del rischio di un evento;
-- alterazione farmacocinetica;
-- aumento o riduzione dell'esposizione;
-- aumento della tossicità;
-- riduzione dell'efficacia;
-- alterazione di parametri clinici o laboratoristici;
-- denominazioni equivalenti italiane e inglesi presenti negli input.
-
-Un evento manifesto e un aumento del rischio dello stesso evento non vengono
-necessariamente considerati equivalenti.
-
-Per esempio, una formulazione che indica "rischio di sanguinamento" può essere
-distinta da una formulazione che documenta un "sanguinamento" già avvenuto.
-
-#### 9.3.5 Uso della terminologia MedDRA
-Quando l'effetto dell'interazione è una manifestazione clinica, la terminologia
-MedDRA fornita negli input può contribuire alla standardizzazione del concetto.
-
-Le categorie finali, tuttavia, seguono il livello di aggregazione richiesto dal
-progetto e non devono essere interpretate automaticamente come singoli codici
-MedDRA.
-
-#### 9.3.6 Priorità tra conseguenze
-Quando una stessa frase permette di riconoscere sia una conseguenza generica
-sia una conseguenza clinica specifica, viene privilegiata quella più
-informativa.
+#### Priorità tra conseguenze
+Quando una stessa frase permette di riconoscere sia una conseguenza generica sia una conseguenza clinica specifica, viene privilegiata quella più informativa.
 
 Esempio concettuale:
 
@@ -540,17 +347,9 @@ può contenere contemporaneamente:
 - aumento dell'esposizione;
 - danno muscolare/rabdomiolisi.
 
-La conseguenza clinica specifica viene preferita rispetto alla sola
-descrizione farmacocinetica generica.
+La conseguenza clinica specifica viene preferita rispetto alla sola descrizione farmacocinetica generica.
+La regola deriva dalla necessità, definita negli input del progetto, di conservare l'informazione clinicamente più specifica.
 
-La regola deriva dalla necessità, definita negli input del progetto, di
-conservare l'informazione clinicamente più specifica.
-
-#### 9.3.7 Termini da revisionare
-Formulazioni eccessivamente generiche o non sufficienti a identificare una
-conseguenza univoca possono essere conservate come elementi da revisionare,
-anziché essere convertite automaticamente.
-
-Questo evita che la semplice presenza di parole come "tossicità", "aumento",
-"riduzione" o altre espressioni generiche produca una classificazione non
-supportata dal contesto.
+#### Termini da revisionare
+Formulazioni eccessivamente generiche o non sufficienti a identificare una conseguenza univoca possono essere conservate come elementi da revisionare, anziché essere convertite automaticamente.
+Questo evita che la semplice presenza di parole come "tossicità", "aumento", "riduzione" o altre espressioni generiche produca una classificazione non supportata dal contesto.
