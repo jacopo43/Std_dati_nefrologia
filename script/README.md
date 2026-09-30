@@ -44,9 +44,7 @@ Unirli orizzontalmente produrrebbe duplicazioni o prodotti cartesiani. Per evita
 - costruzione_dizionari.txt: descrizione dettagliata della costruzione e delle fonti dei dizionari.
 - requisiti.txt: librerie Python necessarie.
 
-## 4. Requisiti e installazione
-
-### 4.1 Pacchetti necessari
+## 4. Pacchetti necessari
 
 ```text
 pandas>=2.2
@@ -54,17 +52,6 @@ numpy>=1.26
 openpyxl>=3.1
 xlrd>=2.0.1
 ```
-
-### 4.2 Installazione
-
-Da terminale, nella cartella del pacchetto:
-
-```bash
-pip install -r requisiti.txt
-```
-
-Per leggere il file originale .xls è necessario xlrd, già incluso in
-requisiti.txt.
 
 ## 5. Esecuzione
 
