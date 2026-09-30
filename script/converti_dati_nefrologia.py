@@ -1,4 +1,4 @@
-"""Conversione e standardizzazione del file nefrologico in formato lungo.
+"""Conversione e standardizzazione del file nefrologico.
 
 Il programma legge un file Excel con un foglio di riepilogo e un foglio per
 paziente. Il foglio di riepilogo non viene esportato: serve soltanto come
@@ -21,11 +21,7 @@ from typing import Iterable
 import numpy as np
 import pandas as pd
 
-
-# -----------------------------------------------------------------------------
-# Configurazione
-# -----------------------------------------------------------------------------
-
+# Configurazione -----
 COLONNE_OUTPUT = [
     "id_paziente", "tipo_record", "indice_record",
     "eta_anni", "fumo", "alcool", "data_raccolta_terapia", "data_revisione_farmacologica",
@@ -40,16 +36,13 @@ COLONNE_OUTPUT = [
     "motivo_interazione", "conseguenza_interazione_1", "conseguenza_interazione_2",
     "conseguenza_interazione_3", "consiglio_clinico",
 ]
-
 COLONNE_CONTROLLO = [voce for colonna_output in COLONNE_OUTPUT for voce in (colonna_output, f"fonte_{colonna_output}")]
-
 FRASI_NEGAZIONE = (
     "no", "non", "nessun", "nessuna", "nega", "assenza di", "senza",
     "senza evidenza di", "escluso", "negativo per",
 )
 FRASI_FAMILIARITA = ("familiarita per", "anamnesi familiare", "madre con", "padre con")
 FRASI_INCERTEZZA = ("sospetto", "possibile", "probabile", "da escludere")
-
 PRIORITA_INTERAZIONI = {
     "PROLUNGAMENTO QT": 10,
     "ALTERAZIONE ELETTROLITICA": 10,
@@ -65,16 +58,12 @@ PRIORITA_INTERAZIONI = {
 }
 
 
-# -----------------------------------------------------------------------------
-# Utilità generali
-# -----------------------------------------------------------------------------
-
+# Utilità generali -----
 def pulisci_testo(valore):
     if valore is None or pd.isna(valore):
         return None
     testo = str(valore).replace("\x00", " ").strip()
     return testo or None
-
 
 def normalizza_testo(valore) -> str:
     testo = pulisci_testo(valore)
@@ -86,14 +75,11 @@ def normalizza_testo(valore) -> str:
     testo = re.sub(r"[^a-z0-9]+", " ", testo)
     return re.sub(r"\s+", " ", testo).strip()
 
-
 def contiene_termine(testo: str, termine: str) -> bool:
     return bool(termine and re.search(rf"(?<!\w){re.escape(termine)}(?!\w)", testo))
 
-
 def contesto_precedente(testo: str, inizio: int, massimo_parole: int = 7) -> str:
     return " ".join(testo[:inizio].strip().split()[-massimo_parole:])
-
 
 def match_valido(testo: str, termine: str) -> bool:
     """Accetta un termine soltanto se non è negato, familiare o incerto."""
@@ -110,13 +96,11 @@ def match_valido(testo: str, termine: str) -> bool:
         return True
     return False if trovato else False
 
-
 def dividi_termini(valore, separatori=r"[;,]") -> set[str]:
     testo = pulisci_testo(valore)
     if not testo:
         return set()
     return {normalizza_testo(x) for x in re.split(separatori, testo) if len(normalizza_testo(x)) >= 2}
-
 
 def motore_excel(percorso: Path) -> str:
     estensione = percorso.suffix.lower()
@@ -126,14 +110,12 @@ def motore_excel(percorso: Path) -> str:
         return "openpyxl"
     raise ValueError("Sono supportati soltanto file .xls e .xlsx")
 
-
 def prima_valida(serie: Iterable):
     for valore in serie:
         valore = pulisci_testo(valore)
         if valore is not None:
             return valore
     return None
-
 
 def data_iso(valore):
     if valore is None or pd.isna(valore):
@@ -143,14 +125,12 @@ def data_iso(valore):
         return None
     return data.strftime("%Y-%m-%d")
 
-
 def calcola_eta(data_nascita, data_riferimento):
     nascita = pd.to_datetime(data_nascita, dayfirst=True, errors="coerce")
     riferimento = pd.to_datetime(data_riferimento, dayfirst=True, errors="coerce")
     if pd.isna(nascita) or pd.isna(riferimento):
         return np.nan
     return int(riferimento.year - nascita.year - ((riferimento.month, riferimento.day) < (nascita.month, nascita.day)))
-
 
 def colonna(df: pd.DataFrame, nome: str) -> pd.Series:
     obiettivo = normalizza_testo(nome)
@@ -160,7 +140,6 @@ def colonna(df: pd.DataFrame, nome: str) -> pd.Series:
             return df[c]
     return pd.Series([np.nan] * len(df), index=df.index)
 
-
 def colonne_univoche(colonne):
     conteggi = {}
     risultato = []
@@ -169,7 +148,6 @@ def colonne_univoche(colonne):
         conteggi[nome] = conteggi.get(nome, 0) + 1
         risultato.append(nome if conteggi[nome] == 1 else f"{nome}__{conteggi[nome]}")
     return risultato
-
 
 def fonte_valori(nome_colonna: str, valori: Iterable, aggiunta: str | None = None) -> str | None:
     """Restituisce una descrizione leggibile dei valori sorgente non vuoti."""
@@ -187,13 +165,11 @@ def fonte_valori(nome_colonna: str, valori: Iterable, aggiunta: str | None = Non
         parti.append(aggiunta)
     return " | ".join(parti)
 
-
 def percentuale_mancanti_dataframe(df: pd.DataFrame) -> float:
     if df.empty or df.size == 0:
         return 0.0
     mancante = df.apply(lambda col: col.map(lambda x: pulisci_testo(x) is None))
     return float(mancante.to_numpy().mean() * 100)
-
 
 def percentuale_mancanti_originale(pazienti: dict[str, pd.DataFrame]) -> float:
     mancanti = 0
@@ -208,7 +184,6 @@ def percentuale_mancanti_originale(pazienti: dict[str, pd.DataFrame]) -> float:
             totale += 1
             mancanti += int(pulisci_testo(valore) is None)
     return (mancanti / totale * 100) if totale else 0.0
-
 
 def salva_excel_semplice(df: pd.DataFrame, percorso: Path, nome_foglio: str):
     """Salva un .xlsx senza tabelle/pivot/colori; solo intestazioni in grassetto."""
@@ -227,16 +202,11 @@ def salva_excel_semplice(df: pd.DataFrame, percorso: Path, nome_foglio: str):
             cella.number_format = "General"
 
 
-# -----------------------------------------------------------------------------
-# Dizionari
-# -----------------------------------------------------------------------------
-
+# Dizionari -----
 @dataclass(frozen=True)
 class Farmaco:
     principio_attivo: str
     codice_atc: str | None
-
-
 @dataclass(frozen=True)
 class VoceDizionario:
     categoria: str
@@ -380,13 +350,9 @@ class Dizionari:
         return sorted(nomi, key=lambda x: (PRIORITA_INTERAZIONI.get(x, 50), ordine_originale.get(x, 9999)))[:massimo]
 
 
-# -----------------------------------------------------------------------------
-# Terapia
-# -----------------------------------------------------------------------------
-
+# Terapia -----
 MODELLO_DOSAGGIO = re.compile(r"(?P<valore>\d+(?:[.,]\d+)?)\s*(?P<unita>kg|mg|mcg|ug|µg|g|ui|iu)(?=$|[^a-zA-Zµ])", re.I)
 MODELLO_VIA = re.compile(r"\b(per\s+os|orale|os|ev|iv|im|sc|sottocute|sottocutanea|inalatoria|topica|transdermica)\b", re.I)
-
 
 def somministrazioni_giornaliere(testo: str) -> float:
     grezzo = str(testo).lower().replace("’", "'")
@@ -414,7 +380,6 @@ def somministrazioni_giornaliere(testo: str) -> float:
         return 1.0
     return np.nan
 
-
 def analizza_terapia(testo, dizionari: Dizionari):
     testo = pulisci_testo(testo)
     if not testo:
@@ -433,10 +398,7 @@ def analizza_terapia(testo, dizionari: Dizionari):
     }
 
 
-# -----------------------------------------------------------------------------
-# Lettura e trasformazione
-# -----------------------------------------------------------------------------
-
+# Lettura e trasformazione -----
 def leggi_fogli_paziente(percorso: Path) -> dict[str, pd.DataFrame]:
     motore = motore_excel(percorso)
     libro = pd.ExcelFile(percorso, engine=motore)
@@ -451,7 +413,6 @@ def leggi_fogli_paziente(percorso: Path) -> dict[str, pd.DataFrame]:
         raise ValueError("Non sono stati trovati fogli-paziente nel file sorgente.")
     return risultato
 
-
 def conta_farmaci_in_testo(serie: pd.Series, dizionari: Dizionari) -> int:
     trovati = set()
     for valore in serie:
@@ -459,7 +420,6 @@ def conta_farmaci_in_testo(serie: pd.Series, dizionari: Dizionari) -> int:
         if info:
             trovati.add(normalizza_testo(info.principio_attivo))
     return len(trovati)
-
 
 def crea_base_riepilogo(df: pd.DataFrame, dizionari: Dizionari) -> tuple[dict, dict]:
     nascita = prima_valida(colonna(df, "DDN"))
@@ -518,7 +478,6 @@ def crea_base_riepilogo(df: pd.DataFrame, dizionari: Dizionari) -> tuple[dict, d
     }
     return riepilogo, fonti
 
-
 def righe_comorbidita(df: pd.DataFrame, dizionari: Dizionari):
     viste = set()
     righe = []
@@ -535,7 +494,6 @@ def righe_comorbidita(df: pd.DataFrame, dizionari: Dizionari):
             fonti = {"comorbidita_pre": fonte, "testo_comorbidita_originale": f"MEDICAL HISTORY: {testo_pulito}"}
             righe.append((specifici, fonti))
     return righe
-
 
 def righe_terapia(df: pd.DataFrame, dizionari: Dizionari, data_ricognizione, fonte_data_ricognizione):
     righe = []
@@ -557,7 +515,6 @@ def righe_terapia(df: pd.DataFrame, dizionari: Dizionari, data_ricognizione, fon
             }
             righe.append((analisi, fonti))
     return righe
-
 
 def righe_interazioni(df: pd.DataFrame, dizionari: Dizionari):
     a_originale = colonna(df, 'FARMACO interagente "A"')
@@ -623,7 +580,6 @@ def righe_interazioni(df: pd.DataFrame, dizionari: Dizionari):
             pulite.append((riga, fonti))
     return pulite
 
-
 def aggiungi_record(lista, lista_controllo, id_paziente, tipo_record, indice,
                      riepilogo, fonti_riepilogo, specifici=None, fonti_specifici=None):
     riga = {c: np.nan for c in COLONNE_OUTPUT}
@@ -648,7 +604,6 @@ def aggiungi_record(lista, lista_controllo, id_paziente, tipo_record, indice,
         riga_controllo[c] = riga.get(c, np.nan)
         riga_controllo[f"fonte_{c}"] = fonti.get(c)
     lista_controllo.append(riga_controllo)
-
 
 def converti(percorso_input: Path, cartella_risorse: Path, percorso_output: Path,
              percorso_output_controllo: Path | None = None):
