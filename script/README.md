@@ -235,15 +235,12 @@ sulle categorie generiche; il rischio di sanguinamento viene distinto dal sangui
 
 ## 8. Output
 
-Lo script genera ora due file:
+Lo script genera due file:
 1. il file standardizzato pulito, con le sole variabili finali;
 2. un file di controllo, in cui ogni variabile è immediatamente affiancata da
    "fonte_<nome_variabile>". La fonte riporta la colonna e il valore originale
    da cui la variabile è stata ricavata e, quando il valore dipende da un
    dizionario, indica anche il dizionario utilizzato.
-
-Il file di controllo è progettato per validare il comportamento dello script e
-confrontare rapidamente il valore standardizzato con il testo sorgente.
 
 ## 9. Costruzione dei dizionari
 
