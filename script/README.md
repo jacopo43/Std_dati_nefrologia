@@ -39,8 +39,7 @@ Unirli orizzontalmente produrrebbe duplicazioni o prodotti cartesiani. Per evita
 - dizionario_comorbidita.xlsx: categorie standard, sinonimi, radici di ricerca e regole di uso automatico.
 - dizionario_interazioni.xlsx: categorie standard delle conseguenze delle interazioni e termini associati.
 - mappa_variabili.xlsx: documentazione sintetica del passaggio sorgente -> trasformazione -> variabile finale.
-- costruzione_dizionari.txt: descrizione dettagliata della costruzione e delle fonti dei dizionari.
-- requisiti.txt: librerie Python necessarie.
+- 'file da convertire'
 
 ## 4. Pacchetti necessari
 
