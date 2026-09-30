@@ -34,9 +34,6 @@ Unirli orizzontalmente produrrebbe duplicazioni o prodotti cartesiani. Per evita
 - terapia: una riga per ciascuna terapia pre revisione farmacologica;
 - interazione: una riga per ciascuna interazione farmacologica.
 
-Le variabili di riepilogo vengono ripetute anche sulle righe lunghe dello stesso paziente. Questo rende il file immediatamente filtrabile e analizzabile senza 
-dover eseguire merge aggiuntivi.
-
 ## 3. File coinvolti
 
 - converti_dati_nefrologia.py: programma principale.
