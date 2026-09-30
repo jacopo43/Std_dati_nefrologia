@@ -1,0 +1,9 @@
+- verificare data di riferimento per l'età --> file Miriam
+- need to add first linking from first sheet with names to the other sheets and 
+  substitution with ids --> file miriam
+- need to verify dictionaries and their effectiveness
+
+PROBLEMI EXCEL
+- COMORBIDITA': rivedere dizionari di conversione
+- TERAPIA PRE MR E MEDICATION REV: rivedere dizionario
+- INTERAZIONI: prolungamneto del QT non sempre convertito

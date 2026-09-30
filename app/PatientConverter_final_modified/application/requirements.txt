@@ -1,0 +1,7 @@
+numpy
+pandas
+openpyxl
+xlrd
+odfpy
+tkinterdnd2
+pyinstaller

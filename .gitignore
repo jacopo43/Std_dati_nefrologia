@@ -1,0 +1,22 @@
+
+# R projects and workspace files
+*.Rproj
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+
+# Large data and archive files
+*.tsv
+*.sav
+*.dta
+*.rds
+*.RData
+
+# Generated, cache, and temporary files
+*.log
+*.tmp
+*.temp
+*.bak
+.cache/
+~$*
