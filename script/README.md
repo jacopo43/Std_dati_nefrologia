@@ -1,42 +1,32 @@
-CONVERSIONE E STANDARDIZZAZIONE DATI NEFROLOGIA
+# CONVERSIONE E STANDARDIZZAZIONE DATI NEFROLOGIA
 
-## PACCHETTI NECESSARI
-pandas>=2.2
-numpy>=1.26
-openpyxl>=3.1
-xlrd>=2.0.1
+## Indice
 
-## INSTALLAZIONE
-Da terminale, nella cartella del pacchetto:
+1. [Obiettivo](#1-obiettivo)
+2. [Scelta strutturale](#2-scelta-strutturale)
+3. [File coinvolti](#3-file-coinvolti)
+4. [Requisiti e installazione](#4-requisiti-e-installazione)
+   - [4.1 Pacchetti necessari](#41-pacchetti-necessari)
+   - [4.2 Installazione](#42-installazione)
+5. [Esecuzione](#5-esecuzione)
+   - [5.1 Esecuzione base](#51-esecuzione-base)
+   - [5.2 Nomi personalizzati](#52-nomi-personalizzati)
+6. [Logica delle variabili di output](#6-logica-delle-variabili-di-output)
+7. [Pulizia generale](#7-pulizia-generale)
+8. [Output](#8-output)
+9. [Costruzione dei dizionari](#9-costruzione-dei-dizionari)
+   - [9.1 Dizionario dei farmaci](#91-dizionario-dei-farmaci)
+   - [9.2 Dizionario delle comorbidità](#92-dizionario-delle-comorbidità)
+   - [9.3 Dizionario delle conseguenze delle interazioni](#93-dizionario-delle-conseguenze-delle-interazioni)
 
-    pip install -r requisiti.txt
+## 1. Obiettivo
 
-Per leggere il file originale .xls e necessario xlrd, gia incluso in
-requisiti.txt.
-
-## ESECUZIONE BASE
-    python converti_dati_nefrologia.py pz_nefro_originale.xls
-
-Vengono creati automaticamente:
-- dati_nefrologia_standardizzati.xlsx
-- dati_nefrologia_standardizzati_controllo_fonti.xlsx
-
-## NOMI PERSONALIZZATI
-    python converti_dati_nefrologia.py pz_nefro_originale.xls \
-        --output dati_puliti.xlsx \
-        --output-controllo dati_controllo_fonti.xlsx
-
-Se i dizionari sono in una cartella diversa:
-    python converti_dati_nefrologia.py pz_nefro_originale.xls \
-        --risorse "C:/percorso/dizionari"
-
-
-## OBIETTIVO
 Il programma trasforma il file originale, nel quale ogni paziente occupa un foglio separato, in due file Excel: 
 un output pulito con il foglio "dati_standardizzati" e un output di controllo con il foglio "dati_con_fonti". 
 I dati anagrafici identificativi non vengono riportati. Ogni paziente riceve un identificativo progressivo anonimo (id_paziente).
 
-## SCELTA STRUTTURALE
+## 2. Scelta strutturale
+
 I domini presenti nel file originale hanno cardinalità diverse: un paziente può avere una sola età, molte comorbidità, molti farmaci e molte interazioni. 
 Unirli orizzontalmente produrrebbe duplicazioni o prodotti cartesiani. Per evitare questo problema l'output è in formato lungo e contiene quattro tipi di record:
 - riepilogo: una riga sempre presente per ciascun paziente;
@@ -47,7 +37,8 @@ Unirli orizzontalmente produrrebbe duplicazioni o prodotti cartesiani. Per evita
 Le variabili di riepilogo vengono ripetute anche sulle righe lunghe dello stesso paziente. Questo rende il file immediatamente filtrabile e analizzabile senza 
 dover eseguire merge aggiuntivi.
 
-## FILE COINVOLTI
+## 3. File coinvolti
+
 - converti_dati_nefrologia.py: programma principale.
 - dizionario_farmaci.xlsx: associa sinonimi e denominazioni commerciali al principio attivo e al codice ATC.
 - dizionario_comorbidita.xlsx: categorie standard, sinonimi, radici di ricerca e regole di uso automatico.
@@ -56,152 +47,203 @@ dover eseguire merge aggiuntivi.
 - costruzione_dizionari.txt: descrizione dettagliata della costruzione e delle fonti dei dizionari.
 - requisiti.txt: librerie Python necessarie.
 
-## LOGICA DELLE VARIABILI DI OUTPUT
-id_paziente
-Origine: ordine dei fogli-paziente nel file sorgente, escluso il foglio RIASSUNTO.
-Trasformazione: numerazione progressiva 1, 2, 3, ...
-Motivo: elimina la necessità di esportare codice fiscale, nome o cognome.
+## 4. Requisiti e installazione
 
-tipo_record
-Origine: non presente nel file originale.
-Trasformazione: valore derivato dal dominio del record: riepilogo, comorbidita, terapia o interazione.
-Motivo: consente di mantenere in un unico foglio informazioni con cardinalità differenti senza creare combinazioni artificiali.
+### 4.1 Pacchetti necessari
 
-indice_record
-Origine: ordine del record all'interno del singolo dominio e del singolo paziente.
-Trasformazione: numerazione progressiva a partire da 1.
+```text
+pandas>=2.2
+numpy>=1.26
+openpyxl>=3.1
+xlrd>=2.0.1
+```
 
-eta_anni
-Origine: DDN.
-Data di riferimento: DATA VALUTAZIONE; se assente, DATA VISITA AMB.
-Trasformazione: differenza esatta in anni compiuti. Se una delle date non è disponibile il valore resta mancante.
-Miglioramento rispetto al notebook: non viene più usata una data fissa arbitraria, quindi l'età è riferita al momento clinicamente pertinente.
+### 4.2 Installazione
 
-fumo
-Origine: MEDICAL HISTORY.
-Dizionario: dizionario_comorbidita.xlsx.
-Trasformazione: 1 se il testo produce la categoria FUMO, 0 altrimenti. Le negazioni vengono escluse.
+Da terminale, nella cartella del pacchetto:
 
-alcool
-Origine: MEDICAL HISTORY.
-Dizionario: dizionario_comorbidita.xlsx.
-Trasformazione: 1 se il testo produce la categoria ALCOL/ALCOOL, 0 altrimenti. Le negazioni vengono escluse.
+```bash
+pip install -r requisiti.txt
+```
 
-data_raccolta_terapia
-Origine: DATA VISITA AMB.
-Trasformazione: data standard ISO AAAA-MM-GG.
+Per leggere il file originale .xls è necessario xlrd, già incluso in
+requisiti.txt.
 
-data_revisione_farmacologica
-Origine: DATA VALUTAZIONE.
-Trasformazione: data standard ISO AAAA-MM-GG.
+## 5. Esecuzione
 
-punteggio_acb_pre
-Origine: ACB Score.
-Trasformazione: conversione numerica; valori non interpretabili restano mancanti.
+### 5.1 Esecuzione base
 
-numero_comorbidita_pre
-Origine: tutte le righe di MEDICAL HISTORY.
-Dizionario: dizionario_comorbidita.xlsx.
-Trasformazione: conteggio delle categorie standard uniche, escludendo FUMO e ALCOL/ALCOOL perché trattate come variabili dedicate.
+```bash
+python converti_dati_nefrologia.py pz_nefro_originale.xls
+```
 
-numero_farmaci_pre
-Origine: TERAPIA IN CORSO DI RICOVERO.
-Trasformazione: numero di righe non vuote di terapia. La misura rappresenta quindi le terapie registrate, indipendentemente dal successo del riconoscimento del 
+Vengono creati automaticamente:
+- dati_nefrologia_standardizzati.xlsx
+- dati_nefrologia_standardizzati_controllo_fonti.xlsx
+
+### 5.2 Nomi personalizzati
+
+```bash
+python converti_dati_nefrologia.py pz_nefro_originale.xls \
+    --output dati_puliti.xlsx \
+    --output-controllo dati_controllo_fonti.xlsx
+```
+
+Se i dizionari sono in una cartella diversa:
+
+```bash
+python converti_dati_nefrologia.py pz_nefro_originale.xls \
+    --risorse "C:/percorso/dizionari"
+```
+
+## 6. Logica delle variabili di output
+
+### `id_paziente`
+**Origine:** ordine dei fogli-paziente nel file sorgente, escluso il foglio RIASSUNTO.
+**Trasformazione:** numerazione progressiva 1, 2, 3, ...
+**Motivo:** elimina la necessità di esportare codice fiscale, nome o cognome.
+
+### `tipo_record`
+**Origine:** non presente nel file originale.
+**Trasformazione:** valore derivato dal dominio del record: riepilogo, comorbidita, terapia o interazione.
+**Motivo:** consente di mantenere in un unico foglio informazioni con cardinalità differenti senza creare combinazioni artificiali.
+
+### `indice_record`
+**Origine:** ordine del record all'interno del singolo dominio e del singolo paziente.
+**Trasformazione:** numerazione progressiva a partire da 1.
+
+### `eta_anni`
+**Origine:** DDN.
+**Data di riferimento:** DATA VALUTAZIONE; se assente, DATA VISITA AMB.
+**Trasformazione:** differenza esatta in anni compiuti. Se una delle date non è disponibile il valore resta mancante.
+**Miglioramento rispetto al notebook:** non viene più usata una data fissa arbitraria, quindi l'età è riferita al momento clinicamente pertinente.
+
+### `fumo`
+**Origine:** MEDICAL HISTORY.
+**Dizionario:** dizionario_comorbidita.xlsx.
+**Trasformazione:** 1 se il testo produce la categoria FUMO, 0 altrimenti. Le negazioni vengono escluse.
+
+### `alcool`
+**Origine:** MEDICAL HISTORY.
+**Dizionario:** dizionario_comorbidita.xlsx.
+**Trasformazione:** 1 se il testo produce la categoria ALCOL/ALCOOL, 0 altrimenti. Le negazioni vengono escluse.
+
+### `data_raccolta_terapia`
+**Origine:** DATA VISITA AMB.
+**Trasformazione:** data standard ISO AAAA-MM-GG.
+
+### `data_revisione_farmacologica`
+**Origine:** DATA VALUTAZIONE.
+**Trasformazione:** data standard ISO AAAA-MM-GG.
+
+### `punteggio_acb_pre`
+**Origine:** ACB Score.
+**Trasformazione:** conversione numerica; valori non interpretabili restano mancanti.
+
+### `numero_comorbidita_pre`
+**Origine:** tutte le righe di MEDICAL HISTORY.
+**Dizionario:** dizionario_comorbidita.xlsx.
+**Trasformazione:** conteggio delle categorie standard uniche, escludendo FUMO e ALCOL/ALCOOL perché trattate come variabili dedicate.
+
+### `numero_farmaci_pre`
+**Origine:** TERAPIA IN CORSO DI RICOVERO.
+**Trasformazione:** numero di righe non vuote di terapia. La misura rappresenta quindi le terapie registrate, indipendentemente dal successo del riconoscimento del 
 principio attivo.
 
-numero_interazioni_cd_pre
-Origine: GRAVITA' INTERAZIONI.
-Trasformazione: conteggio delle righe con classe C o D.
+### `numero_interazioni_cd_pre`
+**Origine:** GRAVITA' INTERAZIONI.
+**Trasformazione:** conteggio delle righe con classe C o D.
 
-numero_farmaci_inappropriati_beers_pre
-Origine: CRITERI DI BEERS.
-Dizionario: dizionario_farmaci.xlsx.
-Trasformazione: conteggio dei principi attivi unici riconosciuti.
+### `numero_farmaci_inappropriati_beers_pre`
+**Origine:** CRITERI DI BEERS.
+**Dizionario:** dizionario_farmaci.xlsx.
+**Trasformazione:** conteggio dei principi attivi unici riconosciuti.
 
-numero_farmaci_inappropriati_start_pre
-Origine: CRITERI START.
-Dizionario: dizionario_farmaci.xlsx.
-Trasformazione: conteggio dei principi attivi unici riconosciuti.
+### `numero_farmaci_inappropriati_start_pre`
+**Origine:** CRITERI START.
+**Dizionario:** dizionario_farmaci.xlsx.
+**Trasformazione:** conteggio dei principi attivi unici riconosciuti.
 
-numero_farmaci_inappropriati_stopp_pre
-Origine: CRITERI STOPP.
-Dizionario: dizionario_farmaci.xlsx.
-Trasformazione: conteggio dei principi attivi unici riconosciuti.
+### `numero_farmaci_inappropriati_stopp_pre`
+**Origine:** CRITERI STOPP.
+**Dizionario:** dizionario_farmaci.xlsx.
+**Trasformazione:** conteggio dei principi attivi unici riconosciuti.
 
-comorbidita_pre
-Origine: MEDICAL HISTORY.
-Dizionario: dizionario_comorbidita.xlsx.
-Trasformazione: normalizzazione del testo, ricerca di sinonimi/radici, esclusione di negazioni, familiarità e formulazioni incerte, rimozione dei duplicati. 
+### `comorbidita_pre`
+**Origine:** MEDICAL HISTORY.
+**Dizionario:** dizionario_comorbidita.xlsx.
+**Trasformazione:** normalizzazione del testo, ricerca di sinonimi/radici, esclusione di negazioni, familiarità e formulazioni incerte, rimozione dei duplicati. 
 Le infezioni vengono ricondotte alla categoria generale prevista dal dizionario. Le categorie specifiche prevalgono su quelle generiche quando previsto.
 
-testo_comorbidita_originale
-Origine: MEDICAL HISTORY.
-Trasformazione: nessuna trasformazione sostanziale; è conservato il testo che ha generato la categoria standard. Serve per controllo e validazione manuale.
+### `testo_comorbidita_originale`
+**Origine:** MEDICAL HISTORY.
+**Trasformazione:** nessuna trasformazione sostanziale; è conservato il testo che ha generato la categoria standard. Serve per controllo e validazione manuale.
 
-data_ricognizione
-Origine: DATA VALUTAZIONE.
-Trasformazione: data ISO AAAA-MM-GG e ripetizione sulle righe di terapia del paziente.
+### `data_ricognizione`
+**Origine:** DATA VALUTAZIONE.
+**Trasformazione:** data ISO AAAA-MM-GG e ripetizione sulle righe di terapia del paziente.
 
-farmaco_pre
-Origine: TERAPIA IN CORSO DI RICOVERO.
-Dizionario: dizionario_farmaci.xlsx.
-Trasformazione: ricerca del principio attivo tramite nome canonico, sinonimi, denominazioni commerciali e radici di ricerca. Se non riconosciuto resta mancante; 
+### `farmaco_pre`
+**Origine:** TERAPIA IN CORSO DI RICOVERO.
+**Dizionario:** dizionario_farmaci.xlsx.
+**Trasformazione:** ricerca del principio attivo tramite nome canonico, sinonimi, denominazioni commerciali e radici di ricerca. Se non riconosciuto resta mancante; 
 il testo originale è comunque conservato.
 
-codice_atc_pre
-Origine: derivato dal farmaco riconosciuto.
-Dizionario: dizionario_farmaci.xlsx.
-Trasformazione: codice ATC associato al principio attivo; può essere mancante se non disponibile nel dizionario.
+### `codice_atc_pre`
+**Origine:** derivato dal farmaco riconosciuto.
+**Dizionario:** dizionario_farmaci.xlsx.
+**Trasformazione:** codice ATC associato al principio attivo; può essere mancante se non disponibile nel dizionario.
 
-dosaggio_pre
-Origine: TERAPIA IN CORSO DI RICOVERO.
-Trasformazione: prima quantità riconosciuta prima di un'unità farmacologica (kg, mg, mcg/ug/µg, g, UI/IU); la virgola decimale viene convertita in punto numerico.
+### `dosaggio_pre`
+**Origine:** TERAPIA IN CORSO DI RICOVERO.
+**Trasformazione:** prima quantità riconosciuta prima di un'unità farmacologica (kg, mg, mcg/ug/µg, g, UI/IU); la virgola decimale viene convertita in punto numerico.
 
-unita_dosaggio_pre
-Origine: TERAPIA IN CORSO DI RICOVERO.
-Trasformazione: unità riconosciuta e normalizzata in minuscolo.
+### `unita_dosaggio_pre`
+**Origine:** TERAPIA IN CORSO DI RICOVERO.
+**Trasformazione:** unità riconosciuta e normalizzata in minuscolo.
 
-somministrazioni_giornaliere_pre
-Origine: TERAPIA IN CORSO DI RICOVERO.
-Trasformazione: stima della frequenza giornaliera da espressioni come "ore 8 e ore 20", "2 volte al giorno", "ogni 8 ore", "bid", "tid", "1 cp". Non rappresenta 
+### `somministrazioni_giornaliere_pre`
+**Origine:** TERAPIA IN CORSO DI RICOVERO.
+**Trasformazione:** stima della frequenza giornaliera da espressioni come "ore 8 e ore 20", "2 volte al giorno", "ogni 8 ore", "bid", "tid", "1 cp". Non rappresenta 
 i milligrammi totali al giorno: rappresenta il numero di somministrazioni giornaliere.
 
-via_somministrazione_pre
-Origine: TERAPIA IN CORSO DI RICOVERO.
-Trasformazione: riconoscimento di espressioni standard come orale/per os, EV/IV, IM, SC/sottocute, inalatoria, topica, transdermica.
+### `via_somministrazione_pre`
+**Origine:** TERAPIA IN CORSO DI RICOVERO.
+**Trasformazione:** riconoscimento di espressioni standard come orale/per os, EV/IV, IM, SC/sottocute, inalatoria, topica, transdermica.
 
-testo_terapia_originale
-Origine: TERAPIA IN CORSO DI RICOVERO.
-Trasformazione: conservato integralmente per permettere verifica dei campi derivati.
+### `testo_terapia_originale`
+**Origine:** TERAPIA IN CORSO DI RICOVERO.
+**Trasformazione:** conservato integralmente per permettere verifica dei campi derivati.
 
-farmaco_interagente_1
-Origine: FARMACO interagente "A".
-Trasformazione: forward-fill per gestire celle unite nel file originale; il valore non viene forzato nel dizionario per non perdere la denominazione clinicamente 
+### `farmaco_interagente_1`
+**Origine:** FARMACO interagente "A".
+**Trasformazione:** forward-fill per gestire celle unite nel file originale; il valore non viene forzato nel dizionario per non perdere la denominazione clinicamente 
 inserita.
 
-farmaco_interagente_2
-Origine: FARMACO interagente "B".
-Trasformazione: forward-fill per gestire celle unite nel file originale.
+### `farmaco_interagente_2`
+**Origine:** FARMACO interagente "B".
+**Trasformazione:** forward-fill per gestire celle unite nel file originale.
 
-tipo_interazione
-Origine: GRAVITA' INTERAZIONI.
-Trasformazione: mantenimento del valore sorgente (per esempio C o D).
+### `tipo_interazione`
+**Origine:** GRAVITA' INTERAZIONI.
+**Trasformazione:** mantenimento del valore sorgente (per esempio C o D).
 
-motivo_interazione
-Origine: POSSIBILI EFFETTI INTERAZIONE.
-Trasformazione: testo originale conservato; costituisce anche l'input per la codifica delle conseguenze.
+### `motivo_interazione`
+**Origine:** POSSIBILI EFFETTI INTERAZIONE.
+**Trasformazione:** testo originale conservato; costituisce anche l'input per la codifica delle conseguenze.
 
-conseguenza_interazione_1 / 2 / 3
-Origine: POSSIBILI EFFETTI INTERAZIONE.
-Dizionario: dizionario_interazioni.xlsx.
-Trasformazione: ricerca multi-etichetta delle conseguenze standard; al massimo tre categorie ordinate per specificità/priorità. Una tossicità specifica prevale 
+### `conseguenza_interazione_1 / 2 / 3`
+**Origine:** POSSIBILI EFFETTI INTERAZIONE.
+**Dizionario:** dizionario_interazioni.xlsx.
+**Trasformazione:** ricerca multi-etichetta delle conseguenze standard; al massimo tre categorie ordinate per specificità/priorità. Una tossicità specifica prevale 
 sulle categorie generiche; il rischio di sanguinamento viene distinto dal sanguinamento già manifestato.
 
-consiglio_clinico
-Origine: COMPORTAMENTO CLINICO.
-Trasformazione: testo originale, senza codifica automatica.
+### `consiglio_clinico`
+**Origine:** COMPORTAMENTO CLINICO.
+**Trasformazione:** testo originale, senza codifica automatica.
 
-## PULIZIA GENERALE
+## 7. Pulizia generale
+
 - gli spazi iniziali/finali e i caratteri nulli vengono rimossi durante il matching;
 - il matching non dipende da maiuscole/minuscole o accenti;
 - i dati mancanti sono ammessi e non vengono imputati;
@@ -210,22 +252,23 @@ Trasformazione: testo originale, senza codifica automatica.
 - i duplicati identici delle interazioni vengono rimossi;
 - nome, cognome e codice fiscale non vengono esportati.
 
-## OUTPUT
+## 8. Output
+
 Lo script genera ora due file:
 1. il file standardizzato pulito, con le sole variabili finali;
-2. un file di controllo, in cui ogni variabile e immediatamente affiancata da
+2. un file di controllo, in cui ogni variabile è immediatamente affiancata da
    "fonte_<nome_variabile>". La fonte riporta la colonna e il valore originale
-   da cui la variabile e stata ricavata e, quando il valore dipende da un
+   da cui la variabile è stata ricavata e, quando il valore dipende da un
    dizionario, indica anche il dizionario utilizzato.
 
-Il file di controllo e progettato per validare il comportamento dello script e
+Il file di controllo è progettato per validare il comportamento dello script e
 confrontare rapidamente il valore standardizzato con il testo sorgente.
 
-## COSTRUZIONE DEI DIZIONARI
+## 9. Costruzione dei dizionari
 
-### 1. DIZIONARIO DEI FARMACI
+### 9.1 Dizionario dei farmaci
 
-#### Fonti originarie
+#### 9.1.1 Fonti originarie
 Il dizionario dei farmaci è stato costruito a partire principalmente da:
 
 1. classificazione ATC (Anatomical Therapeutic Chemical Classification System);
@@ -243,7 +286,7 @@ Il dizionario DiAna e le denominazioni presenti nei dati originari ampliano la
 possibilità di riconoscere lo stesso principio attivo quando viene scritto con
 forme diverse.
 
-#### Costruzione del nome standard
+#### 9.1.2 Costruzione del nome standard
 Per ogni farmaco viene definita una denominazione standard, corrispondente al
 principio attivo o alla combinazione di principi attivi che deve essere
 riportata nell'output.
@@ -263,7 +306,7 @@ Esempio concettuale:
 Le diverse denominazioni non diventano quindi farmaci differenti, ma termini
 alternativi di riconoscimento dello stesso farmaco.
 
-#### Generazione dei termini multipli
+#### 9.1.3 Generazione dei termini multipli
 I termini alternativi possono derivare da:
 
 - denominazione del principio attivo;
@@ -279,7 +322,7 @@ Non vengono inventati nuovi principi attivi.
 Quando una fonte contiene più termini equivalenti, questi vengono separati e
 memorizzati come sinonimi dello stesso elemento standard.
 
-#### Radici di ricerca
+#### 9.1.4 Radici di ricerca
 Per alcuni termini può essere utilizzata una radice esclusivamente per
 riconoscere flessioni o varianti ortografiche dello stesso termine.
 
@@ -292,7 +335,7 @@ un'altra parola.
 Questa regola evita, per esempio, che una sequenza come "asm" venga
 riconosciuta all'interno di "spasmo".
 
-#### Normalizzazione tecnica
+#### 9.1.5 Normalizzazione tecnica
 Prima del confronto vengono uniformati:
 
 - maiuscole/minuscole;
@@ -305,9 +348,9 @@ Queste trasformazioni non generano sinonimi clinici nuovi: rendono soltanto
 comparabili forme graficamente diverse dello stesso termine.
 
 
-###  2. DIZIONARIO DELLE COMORBIDITA
+### 9.2 Dizionario delle comorbidità
 
-#### Fonti originarie
+#### 9.2.1 Fonti originarie
 Il dizionario delle comorbidità è stato costruito a partire da:
 
 1. elenco delle comorbidità e delle categorie cliniche definite negli input
@@ -322,7 +365,7 @@ Il dizionario delle comorbidità è stato costruito a partire da:
 I file tecnici successivamente creati per organizzare queste informazioni non
 sono fonti indipendenti: sono la traduzione operativa di questi input.
 
-#### Costruzione delle categorie standard
+#### 9.2.2 Costruzione delle categorie standard
 Le categorie finali non corrispondono necessariamente a una singola stringa
 testuale.
 
@@ -341,7 +384,7 @@ Schema generale:
         <- varianti ortografiche osservate
         <- forme morfologiche riconoscibili tramite radice
 
-#### Generazione di sinonimi e varianti
+#### 9.2.3 Generazione di sinonimi e varianti
 I termini multipli associati a una categoria sono stati ottenuti combinando le
 forme presenti nelle fonti originarie.
 
@@ -357,7 +400,7 @@ In particolare possono essere incluse:
 La presenza di più termini serve esclusivamente a riconoscere modi diversi di
 scrivere la stessa informazione clinica.
 
-#### Uso di MedDRA
+#### 9.2.4 Uso di MedDRA
 MedDRA viene utilizzato come riferimento terminologico clinico quando i termini
 originari provengono da tale nomenclatura o sono stati ricondotti a essa negli
 input forniti.
@@ -369,7 +412,7 @@ riproducibile il riconoscimento dei concetti clinici di interesse.
 Le categorie finali del progetto possono pertanto essere più aggregate rispetto
 a un singolo Preferred Term MedDRA.
 
-#### Radici di ricerca
+#### 9.2.5 Radici di ricerca
 Per alcune comorbidità sono state utilizzate radici per riconoscere varianti
 della stessa parola.
 
@@ -394,7 +437,7 @@ Esempio:
 
 Questa regola è fondamentale per ridurre i falsi positivi.
 
-#### Termini ambigui
+#### 9.2.6 Termini ambigui
 Un termine breve, generico o potenzialmente ambiguo non viene necessariamente
 utilizzato come match automatico.
 
@@ -408,7 +451,7 @@ esso può essere:
 Questa distinzione deriva dalla valutazione clinica dei termini originali e non
 da una generazione automatica di nuove diagnosi.
 
-#### Negazione, familiarità e incertezza
+#### 9.2.7 Negazione, familiarità e incertezza
 La presenza del termine non è sufficiente da sola per assegnare una
 comorbidità.
 
@@ -428,7 +471,7 @@ Le espressioni di negazione, familiarità e incertezza sono state definite a
 partire dalle regole e dagli esempi forniti negli input originari e
 dall'osservazione del tipo di testo libero contenuto nelle cartelle.
 
-#### Accorpamento delle categorie
+#### 9.2.8 Accorpamento delle categorie
 Quando più termini originari rappresentano varianti dello stesso concetto
 richiesto nell'output, essi vengono ricondotti alla stessa categoria.
 
@@ -443,9 +486,9 @@ Queste regole sono definite sulla base della struttura clinica richiesta per il
 dataset finale, non mediante una classificazione statistica automatica.
 
 
-### 3. DIZIONARIO DELLE CONSEGUENZE DELLE INTERAZIONI
+### 9.3 Dizionario delle conseguenze delle interazioni
 
-#### Fonti originarie
+#### 9.3.1 Fonti originarie
 Il dizionario delle interazioni è stato costruito a partire da:
 
 1. categorie di conseguenza delle interazioni farmacologiche definite negli
@@ -462,13 +505,13 @@ Il dizionario delle interazioni è stato costruito a partire da:
 Anche in questo caso i successivi file di dizionario o guida costituiscono
 soltanto una formalizzazione tecnica di tali fonti.
 
-#### Costruzione delle categorie di conseguenza
+#### 9.3.2 Costruzione delle categorie di conseguenza
 Le frasi che descrivono una possibile conseguenza di un'interazione possono
 essere molto diverse pur indicando lo stesso fenomeno.
 
 Per questo motivo vengono ricondotte a una categoria standard.
 
-#### Schema generale:
+#### 9.3.3 Schema generale:
 
     conseguenza standard
         <- descrizione clinica originaria
@@ -479,7 +522,7 @@ Per questo motivo vengono ricondotte a una categoria standard.
         <- formulazione farmacologica equivalente
 
 
-#### Tipi di termini inclusi
+#### 9.3.4 Tipi di termini inclusi
 Tra i termini associabili a una conseguenza possono rientrare:
 
 - evento clinico manifesto;
@@ -497,7 +540,7 @@ necessariamente considerati equivalenti.
 Per esempio, una formulazione che indica "rischio di sanguinamento" può essere
 distinta da una formulazione che documenta un "sanguinamento" già avvenuto.
 
-#### Uso della terminologia MedDRA
+#### 9.3.5 Uso della terminologia MedDRA
 Quando l'effetto dell'interazione è una manifestazione clinica, la terminologia
 MedDRA fornita negli input può contribuire alla standardizzazione del concetto.
 
@@ -505,7 +548,7 @@ Le categorie finali, tuttavia, seguono il livello di aggregazione richiesto dal
 progetto e non devono essere interpretate automaticamente come singoli codici
 MedDRA.
 
-#### Priorità tra conseguenze
+#### 9.3.6 Priorità tra conseguenze
 Quando una stessa frase permette di riconoscere sia una conseguenza generica
 sia una conseguenza clinica specifica, viene privilegiata quella più
 informativa.
@@ -525,7 +568,7 @@ descrizione farmacocinetica generica.
 La regola deriva dalla necessità, definita negli input del progetto, di
 conservare l'informazione clinicamente più specifica.
 
-#### Termini da revisionare
+#### 9.3.7 Termini da revisionare
 Formulazioni eccessivamente generiche o non sufficienti a identificare una
 conseguenza univoca possono essere conservate come elementi da revisionare,
 anziché essere convertite automaticamente.
