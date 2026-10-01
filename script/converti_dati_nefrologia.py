@@ -231,7 +231,7 @@ class Dizionari:
         if not richieste.issubset(df.columns):
             raise ValueError(f"Nel dizionario farmaci mancano: {sorted(richieste - set(df.columns))}")
         canonici = []
-        alias = []
+        candidati_alias: dict[str, list[Farmaco]] = {}
         for _, riga in df.iterrows():
             nome = pulisci_testo(riga.get("principio_attivo"))
             if not nome:
@@ -241,14 +241,22 @@ class Dizionari:
             if can:
                 canonici.append((can, info))
             termini = dividi_termini(riga.get("sinonimi")) | dividi_termini(riga.get("radici_ricerca"))
-            alias.extend((termine, info) for termine in termini)
-        for termine, info in alias:
-            self.farmaci.setdefault(termine, info)
+            for termine in termini:
+                candidati_alias.setdefault(termine, []).append(info)
+        # Se lo stesso alias compare in più righe, preferisce una voce con ATC noto e
+        # con il minor numero di principi attivi. Questo riduce collisioni di nomi
+        # commerciali presenti anche in preparazioni composte diverse.
+        for termine, candidati in candidati_alias.items():
+            candidati = sorted(
+                candidati,
+                key=lambda x: (0 if x.codice_atc else 1, x.principio_attivo.count(";"), len(x.principio_attivo))
+            )
+            self.farmaci[termine] = candidati[0]
         for termine, info in canonici:
             self.farmaci[termine] = info
         for alias_norm in self.farmaci:
             for token in set(alias_norm.split()):
-                if len(token) >= 3:
+                if len(token) >= 2:
                     self.indice_farmaci.setdefault(token, []).append(alias_norm)
         for token in self.indice_farmaci:
             self.indice_farmaci[token].sort(key=len, reverse=True)
@@ -286,10 +294,33 @@ class Dizionari:
         candidati = set()
         for token in norm.split():
             candidati.update(self.indice_farmaci.get(token, ()))
-        for alias in sorted(candidati, key=len, reverse=True):
-            if contiene_termine(norm, alias):
-                return self.farmaci[alias]
+        # Nei testi terapeutici possono comparire altri farmaci in note o avvertenze.
+        # Si privilegia quindi il match che compare prima nel testo e, a parità di
+        # posizione, l'alias più specifico/lungo.
+        corrispondenze = []
+        for alias in candidati:
+            m = re.search(rf"(?<!\w){re.escape(alias)}(?!\w)", norm)
+            if m:
+                corrispondenze.append((m.start(), -len(alias), alias))
+        if corrispondenze:
+            _, _, alias = min(corrispondenze)
+            return self.farmaci[alias]
         return None
+
+    def trova_farmaci(self, testo) -> list[Farmaco]:
+        """Restituisce uno o più principi attivi per una singola riga di terapia."""
+        farmaco = self.trova_farmaco(testo)
+        if not farmaco:
+            return []
+        parti = [pulisci_testo(x) for x in farmaco.principio_attivo.split(";")]
+        parti = [x for x in parti if x]
+        if len(parti) <= 1:
+            return [farmaco]
+        risultato = []
+        for parte in parti:
+            info = self.farmaci.get(normalizza_testo(parte))
+            risultato.append(info if info else Farmaco(parte, None))
+        return risultato
 
     @staticmethod
     def _corrisponde(norm: str, voce: VoceDizionario) -> bool:
@@ -315,11 +346,18 @@ class Dizionari:
         if not norm:
             return []
         trovate = [v.categoria for v in self.comorbidita if self._corrisponde(norm, v)]
-        # Le infezioni vengono riunite nella categoria generale prevista dal dizionario.
-        infezioni = [x for x in trovate if x.startswith("INFEZIONE") or "MALATTIA INFETTIVA" in x]
-        if infezioni:
-            preferita = "INFEZIONE/MALATTIA INFETTIVA" if "INFEZIONE/MALATTIA INFETTIVA" in trovate else infezioni[0]
-            trovate = [x for x in trovate if x not in infezioni] + [preferita]
+        # Se è riconosciuta una sede infettiva specifica, non aggiunge anche la
+        # categoria infettiva generica.
+        infezioni_specifiche = [x for x in trovate if x.startswith("INFEZIONE ") and x != "INFEZIONE/MALATTIA INFETTIVA"]
+        if infezioni_specifiche:
+            trovate = [x for x in trovate if x != "INFEZIONE/MALATTIA INFETTIVA"]
+        # Una descrizione esplicitamente conclusa con trattamento e risposta
+        # favorevole non viene interpretata come infezione/comorbidità attiva.
+        if re.search(r"\btrattat\w*\b.{0,140}\brisposta\s+(?:ottimale|completa|favorevole)\b", norm):
+            trovate = [x for x in trovate if not x.startswith("INFEZIONE") and "MALATTIA INFETTIVA" not in x]
+        # Se è disponibile il tipo di diabete, evita il duplicato DIABETE generico.
+        if any(x in trovate for x in {"DIABETE DI TIPO 1", "DIABETE DI TIPO 2"}):
+            trovate = [x for x in trovate if x != "DIABETE"]
         # Categorie generiche che non devono prevalere su categorie specifiche.
         if "FIBRILLAZIONE ATRIALE" in trovate:
             trovate = [x for x in trovate if x != "ARITMIA"]
@@ -352,7 +390,63 @@ class Dizionari:
 
 # Terapia -----
 MODELLO_DOSAGGIO = re.compile(r"(?P<valore>\d+(?:[.,]\d+)?)\s*(?P<unita>kg|mg|mcg|ug|µg|g|ui|iu)(?=$|[^a-zA-Zµ])", re.I)
+MODELLO_DOSAGGIO_CON_UNITA = re.compile(
+    r"(?P<valore>\d+(?:[.,]\d+)?)\s*(?P<unita>kg|mg|mcg|ug|µg|g|ui|iu)\s*"
+    r"(?P<quantita>½|1\s*/\s*2|0[.,]5|\d+(?:[.,]\d+)?)\s*"
+    r"(?:cp|cpr|compress[ae]|capsul[ae])\b", re.I
+)
 MODELLO_VIA = re.compile(r"\b(per\s+os|orale|os|ev|iv|im|sc|sottocute|sottocutanea|inalatoria|topica|transdermica)\b", re.I)
+
+# Per queste combinazioni gli esperti hanno confermato l'ordine con cui i dosaggi
+# sono riportati nel testo clinico. Serve soltanto quando la riga contiene due
+# dosi distinte e viene esplosa in due principi attivi.
+ORDINE_COMPONENTI_DOSAGGIO = {
+    "sulfamethoxazole trimethoprim": ("trimethoprim", "sulfamethoxazole"),
+    "atorvastatin ezetimibe": ("ezetimibe", "atorvastatin"),
+}
+
+def _numero(valore: str) -> float:
+    valore = valore.strip().replace("½", "0.5").replace(" ", "")
+    if valore in {"1/2"}:
+        return 0.5
+    if "/" in valore:
+        a, b = valore.split("/", 1)
+        return float(a.replace(",", ".")) / float(b.replace(",", "."))
+    return float(valore.replace(",", "."))
+
+def dose_per_somministrazione(testo: str):
+    """Dose della singola somministrazione, includendo frazioni/n. compresse."""
+    # Somma dosi esplicitamente additive della stessa riga (es. 0,5 + 1 mg).
+    additiva = re.search(r"(\d+(?:[.,]\d+)?)\s*\+\s*(\d+(?:[.,]\d+)?)\s*(kg|mg|mcg|ug|µg|g|ui|iu)\b", testo, re.I)
+    if additiva:
+        return (float(additiva.group(1).replace(",", ".")) + float(additiva.group(2).replace(",", ".")), additiva.group(3).lower())
+    diretto = MODELLO_DOSAGGIO_CON_UNITA.search(testo)
+    if diretto:
+        return (
+            float(diretto.group("valore").replace(",", ".")) * _numero(diretto.group("quantita")),
+            diretto.group("unita").lower(),
+        )
+    dose = MODELLO_DOSAGGIO.search(testo)
+    if dose:
+        return float(dose.group("valore").replace(",", ".")), dose.group("unita").lower()
+    return np.nan, np.nan
+
+def dosi_componenti_combinazione(testo: str, nome_combinazione: str) -> dict[str, tuple[float, str]]:
+    ordine = ORDINE_COMPONENTI_DOSAGGIO.get(normalizza_testo(nome_combinazione))
+    if not ordine:
+        return {}
+    # Esempio: Bactrim 160+800 mg 1/2 cp -> 80 e 400 mg.
+    m = re.search(r"(\d+(?:[.,]\d+)?)\s*\+\s*(\d+(?:[.,]\d+)?)\s*mg\s*(½|1\s*/\s*2|0[.,]5)?", testo, re.I)
+    if m:
+        fattore = _numero(m.group(3)) if m.group(3) else 1.0
+        valori = [float(m.group(1).replace(",", ".")) * fattore, float(m.group(2).replace(",", ".")) * fattore]
+        return {normalizza_testo(nome): (valore, "mg") for nome, valore in zip(ordine, valori)}
+    # Esempio: Tovastibe 10/40 -> 10 mg ezetimibe + 40 mg atorvastatina.
+    m = re.search(r"\b(\d+(?:[.,]\d+)?)\s*/\s*(\d+(?:[.,]\d+)?)\b", testo)
+    if m:
+        valori = [float(m.group(1).replace(",", ".")), float(m.group(2).replace(",", "."))]
+        return {normalizza_testo(nome): (valore, "mg") for nome, valore in zip(ordine, valori)}
+    return {}
 
 def somministrazioni_giornaliere(testo: str) -> float:
     grezzo = str(testo).lower().replace("’", "'")
@@ -376,26 +470,42 @@ def somministrazioni_giornaliere(testo: str) -> float:
         return 2.0
     if any(x in norm for x in ["una volta al giorno", "1 die", "qd", "al mattino", "alla sera", "la sera", "la mattina"]):
         return 1.0
-    if re.search(r"\b\d+(?:[.,]\d+)?\s*(?:cp|cpr|compress[ae]|capsul[ae]|cerott[oi])\b", grezzo, flags=re.I):
+    if re.search(r"(?:½|1\s*/\s*2|\d+(?:[.,]\d+)?)\s*(?:cp|cpr|compress[ae]|capsul[ae]|cerott[oi])\b", grezzo, flags=re.I):
         return 1.0
     return np.nan
 
 def analizza_terapia(testo, dizionari: Dizionari):
     testo = pulisci_testo(testo)
     if not testo:
-        return None
-    farmaco = dizionari.trova_farmaco(testo)
-    dose = MODELLO_DOSAGGIO.search(testo)
+        return []
+    farmaco_combinazione = dizionari.trova_farmaco(testo)
+    farmaci = dizionari.trova_farmaci(testo)
     via = MODELLO_VIA.search(testo)
-    return {
-        "farmaco_pre": farmaco.principio_attivo if farmaco else np.nan,
-        "codice_atc_pre": farmaco.codice_atc if farmaco else np.nan,
-        "dosaggio_pre": float(dose.group("valore").replace(",", ".")) if dose else np.nan,
-        "unita_dosaggio_pre": dose.group("unita").lower() if dose else np.nan,
-        "somministrazioni_giornaliere_pre": somministrazioni_giornaliere(testo),
-        "via_somministrazione_pre": via.group().strip() if via else np.nan,
-        "testo_terapia_originale": testo,
-    }
+    dose_base, unita_base = dose_per_somministrazione(testo)
+    dosi_componenti = dosi_componenti_combinazione(
+        testo, farmaco_combinazione.principio_attivo if farmaco_combinazione else ""
+    )
+    if not farmaci:
+        farmaci = [None]
+    risultato = []
+    for farmaco in farmaci:
+        dose, unita = dose_base, unita_base
+        if len(farmaci) > 1:
+            specifica = dosi_componenti.get(normalizza_testo(farmaco.principio_attivo)) if farmaco else None
+            if specifica:
+                dose, unita = specifica
+            elif not dosi_componenti:
+                dose, unita = np.nan, np.nan
+        risultato.append({
+            "farmaco_pre": farmaco.principio_attivo if farmaco else np.nan,
+            "codice_atc_pre": farmaco.codice_atc if farmaco else np.nan,
+            "dosaggio_pre": dose,
+            "unita_dosaggio_pre": unita,
+            "somministrazioni_giornaliere_pre": somministrazioni_giornaliere(testo),
+            "via_somministrazione_pre": via.group().strip() if via else np.nan,
+            "testo_terapia_originale": testo,
+        })
+    return risultato
 
 
 # Lettura e trasformazione -----
@@ -416,10 +526,19 @@ def leggi_fogli_paziente(percorso: Path) -> dict[str, pd.DataFrame]:
 def conta_farmaci_in_testo(serie: pd.Series, dizionari: Dizionari) -> int:
     trovati = set()
     for valore in serie:
-        info = dizionari.trova_farmaco(valore)
-        if info:
+        for info in dizionari.trova_farmaci(valore):
             trovati.add(normalizza_testo(info.principio_attivo))
     return len(trovati)
+
+def conta_farmaci_terapia(serie: pd.Series, dizionari: Dizionari) -> int:
+    """Conta i principi attivi; una combinazione riconosciuta vale più farmaci."""
+    totale = 0
+    for valore in serie:
+        if not pulisci_testo(valore):
+            continue
+        farmaci = dizionari.trova_farmaci(valore)
+        totale += len(farmaci) if farmaci else 1
+    return totale
 
 def crea_base_riepilogo(df: pd.DataFrame, dizionari: Dizionari) -> tuple[dict, dict]:
     nascita = prima_valida(colonna(df, "DDN"))
@@ -454,7 +573,7 @@ def crea_base_riepilogo(df: pd.DataFrame, dizionari: Dizionari) -> tuple[dict, d
         "data_revisione_farmacologica": data_iso(data_revisione),
         "punteggio_acb_pre": pd.to_numeric(acb, errors="coerce"),
         "numero_comorbidita_pre": len(comorbidita),
-        "numero_farmaci_pre": len(terapia_non_vuota),
+        "numero_farmaci_pre": conta_farmaci_terapia(pd.Series(terapia_non_vuota), dizionari),
         "numero_interazioni_cd_pre": numero_cd,
         "numero_farmaci_inappropriati_beers_pre": conta_farmaci_in_testo(pd.Series(beers), dizionari),
         "numero_farmaci_inappropriati_start_pre": conta_farmaci_in_testo(pd.Series(start), dizionari),
@@ -498,8 +617,7 @@ def righe_comorbidita(df: pd.DataFrame, dizionari: Dizionari):
 def righe_terapia(df: pd.DataFrame, dizionari: Dizionari, data_ricognizione, fonte_data_ricognizione):
     righe = []
     for testo in colonna(df, "TERAPIA IN CORSO DI RICOVERO"):
-        analisi = analizza_terapia(testo, dizionari)
-        if analisi:
+        for analisi in analizza_terapia(testo, dizionari):
             analisi["data_ricognizione"] = data_ricognizione
             testo_originale = analisi["testo_terapia_originale"]
             base = f"TERAPIA IN CORSO DI RICOVERO: {testo_originale}"

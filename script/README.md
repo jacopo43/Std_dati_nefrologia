@@ -128,8 +128,7 @@ python converti_dati_nefrologia.py pz_nefro_originale.xls \
 
 ### `numero_farmaci_pre`
 **Origine:** TERAPIA IN CORSO DI RICOVERO.
-**Trasformazione:** numero di righe non vuote di terapia. La misura rappresenta quindi le terapie registrate, indipendentemente dal successo del riconoscimento del 
-principio attivo.
+**Trasformazione:** conteggio dei principi attivi. Una riga che contiene una combinazione riconosciuta può contribuire con più farmaci; una riga non vuota non riconosciuta viene comunque conteggiata come una terapia registrata.
 
 ### `numero_interazioni_cd_pre`
 **Origine:** GRAVITA' INTERAZIONI.
@@ -153,8 +152,7 @@ principio attivo.
 ### `comorbidita_pre`
 **Origine:** MEDICAL HISTORY.
 **Dizionario:** dizionario_comorbidita.xlsx.
-**Trasformazione:** normalizzazione del testo, ricerca di sinonimi/radici, esclusione di negazioni, familiarità e formulazioni incerte, rimozione dei duplicati. 
-Le infezioni vengono ricondotte alla categoria generale prevista dal dizionario. Le categorie specifiche prevalgono su quelle generiche quando previsto.
+**Trasformazione:** normalizzazione del testo, ricerca di sinonimi/radici, esclusione di negazioni, familiarità e formulazioni incerte, rimozione dei duplicati. Le categorie specifiche prevalgono sulle generiche quando previsto. Le infezioni urinarie hanno una categoria specifica e le descrizioni esplicitamente concluse con trattamento e risposta favorevole non vengono interpretate come infezioni attive. Dopo revisione esperta sono state aggiunte categorie dedicate per diabete non specificato, retinopatia, glaucoma, nefropatia, infarto miocardico e infezione delle vie urinarie.
 
 ### `testo_comorbidita_originale`
 **Origine:** MEDICAL HISTORY.
@@ -167,8 +165,7 @@ Le infezioni vengono ricondotte alla categoria generale prevista dal dizionario.
 ### `farmaco_pre`
 **Origine:** TERAPIA IN CORSO DI RICOVERO.
 **Dizionario:** dizionario_farmaci.xlsx.
-**Trasformazione:** ricerca del principio attivo tramite nome canonico, sinonimi, denominazioni commerciali e radici di ricerca. Se non riconosciuto resta mancante; 
-il testo originale è comunque conservato.
+**Trasformazione:** ricerca del principio attivo tramite nome canonico, sinonimi e denominazioni commerciali. Se nello stesso testo compaiono più nomi di farmaci, viene privilegiato il match che compare prima nella riga terapeutica, così note e avvertenze non sostituiscono il farmaco realmente prescritto. Le combinazioni riconosciute vengono esplose in più righe, una per principio attivo. Se non riconosciuto il valore resta mancante; il testo originale è comunque conservato.
 
 ### `codice_atc_pre`
 **Origine:** derivato dal farmaco riconosciuto.
@@ -177,7 +174,7 @@ il testo originale è comunque conservato.
 
 ### `dosaggio_pre`
 **Origine:** TERAPIA IN CORSO DI RICOVERO.
-**Trasformazione:** prima quantità riconosciuta prima di un'unità farmacologica (kg, mg, mcg/ug/µg, g, UI/IU); la virgola decimale viene convertita in punto numerico.
+**Trasformazione:** dose per singola somministrazione. La quantità associata all'unità farmacologica (kg, mg, mcg/ug/µg, g, UI/IU) viene moltiplicata per il numero o la frazione di compresse/capsule quando questa è riportata direttamente dopo la forza (per esempio 5 mg 1/2 cp -> 2,5 mg). Per alcune combinazioni con due dosi distinte e ordine confermato dagli esperti, ogni dose viene assegnata al relativo principio attivo.
 
 ### `unita_dosaggio_pre`
 **Origine:** TERAPIA IN CORSO DI RICOVERO.
@@ -216,8 +213,7 @@ inserita.
 ### `conseguenza_interazione_1 / 2 / 3`
 **Origine:** POSSIBILI EFFETTI INTERAZIONE.
 **Dizionario:** dizionario_interazioni.xlsx.
-**Trasformazione:** ricerca multi-etichetta delle conseguenze standard; al massimo tre categorie ordinate per specificità/priorità. Una tossicità specifica prevale 
-sulle categorie generiche; il rischio di sanguinamento viene distinto dal sanguinamento già manifestato.
+**Trasformazione:** ricerca multi-etichetta delle conseguenze standard; al massimo tre categorie ordinate per specificità/priorità. Una tossicità specifica prevale sulle categorie generiche; il rischio di sanguinamento viene distinto dal sanguinamento già manifestato. Dopo revisione esperta sono state aggiunte le formulazioni 'prolungamento dell'intervallo QT' e le specifiche espressioni di rischio di cardiotossicità usate nel file sorgente, ricondotte a PROLUNGAMENTO QT.
 
 ### `consiglio_clinico`
 **Origine:** COMPORTAMENTO CLINICO.
@@ -353,3 +349,14 @@ La regola deriva dalla necessità, definita negli input del progetto, di conserv
 #### Termini da revisionare
 Formulazioni eccessivamente generiche o non sufficienti a identificare una conseguenza univoca possono essere conservate come elementi da revisionare, anziché essere convertite automaticamente.
 Questo evita che la semplice presenza di parole come "tossicità", "aumento", "riduzione" o altre espressioni generiche produca una classificazione non supportata dal contesto.
+
+
+## 10. Aggiornamenti dopo revisione esperta del mock
+
+Le correzioni contenute in `correzione_esperti.txt` sono state usate come test di validazione del motore. Gli aggiornamenti principali sono:
+
+- **Comorbidità:** la sola necrosi tubulare acuta non viene più classificata automaticamente come danno renale acuto; espressioni di trattamento emodialitico supportano invece la categoria renale cronica. Pirosi isolata non genera più reflusso gastroesofageo e iperparatiroidismo isolato non genera automaticamente alterazione del metabolismo osseo. Sono state aggiunte categorie per diabete non specificato, retinopatia, glaucoma, nefropatia, infarto miocardico e infezione delle vie urinarie.
+- **Infezioni:** una descrizione esplicitamente conclusa con trattamento e risposta ottimale/completa/favorevole viene esclusa dalla codifica automatica di infezione attiva.
+- **Farmaci:** il match più vicino all'inizio della riga terapeutica ha priorità sui farmaci citati successivamente in note o avvertenze; questo corregge, per esempio, `Tiamazolo ... paracetamolo`. Sono stati aggiunti `Conferoport -> tacrolimus` e `Tovastibe -> atorvastatina + ezetimibe`; il cotrimossazolo/Bactrim ha ATC di combinazione J01EE01 e, nell'output terapeutico, viene esploso nei due principi attivi.
+- **Posologia:** vengono riconosciute frazioni come `1/2 cp` e `½ cp`; la dose riportata è la dose per singola somministrazione.
+- **Interazioni:** sono state ampliate le espressioni che producono `PROLUNGAMENTO QT`, includendo `prolungamento dell'intervallo QT` e le formulazioni di rischio di cardiotossicità validate dagli esperti sul mock.
